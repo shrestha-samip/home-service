@@ -1,6 +1,6 @@
 import React from 'react';
 import { Users, Award, CheckCircle, DollarSign, Shield, Star, Clock, MapPin, MessageSquare } from 'lucide-react';
-import StatCard from '../components/statCard';
+import StatCard from '../components/StatCard';
 
 const HomePage = ({ stats, isLoggedIn, userType, setShowSignup, setCurrentView }) => {
   return (
@@ -45,25 +45,25 @@ const HomePage = ({ stats, isLoggedIn, userType, setShowSignup, setCurrentView }
           <StatCard 
             icon={Users} 
             label="Total Bookings" 
-            value={stats.totalBookings} 
+            value={stats.total_bookings ?? 0} 
             color="from-blue-400 to-blue-600" 
           />
           <StatCard 
             icon={Award} 
             label="Active Providers" 
-            value={stats.activeProviders} 
+            value={stats.active_providers ?? 0} 
             color="from-green-400 to-green-600" 
           />
           <StatCard 
             icon={CheckCircle} 
             label="Completed" 
-            value={stats.completedServices} 
+            value={stats.completed_services ?? 0} 
             color="from-purple-400 to-purple-600" 
           />
           <StatCard 
             icon={DollarSign} 
             label="Revenue" 
-            value={stats.revenue} 
+            value={stats.revenue ?? 0} 
             prefix="₹" 
             color="from-pink-400 to-pink-600" 
           />

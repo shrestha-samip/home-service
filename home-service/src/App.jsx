@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import ServicesPage from './pages/ServicesPage';
@@ -7,93 +7,182 @@ import ProvidersPage from './pages/ProvidersPage';
 import ProviderDashboard from './pages/ProviderDashboard';
 import LoginModal from './components/LoginModal';
 import SignupModal from './components/SignupModal';
-import { services } from './data/services';
-import { providers } from './data/provider';
-import { initialBookings, initialServiceRequests, initialStats } from './data/mockData';
+import { api } from './api/client';
+
+const STORAGE_KEY = 'houseServiceUser';
+
+function loadStoredUser() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    if (u?.userId && u?.role) return u;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
 
 function App() {
   const [currentView, setCurrentView] = useState('home');
-  const [userType, setUserType] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState(() => loadStoredUser());
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
-  const [bookings, setBookings] = useState(initialBookings);
-  const [serviceRequests, setServiceRequests] = useState(initialServiceRequests);
-  const [stats, setStats] = useState(initialStats);
+  const [stats, setStats] = useState({
+    total_bookings: 0,
+    completed_services: 0,
+    active_providers: 0,
+    revenue: 0,
+  });
+  const [customerBookings, setCustomerBookings] = useState([]);
+  const [providerBookings, setProviderBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
 
-  // Animate stats on mount
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setStats(prev => ({
-        totalBookings: prev.totalBookings + Math.floor(Math.random() * 2),
-        activeProviders: prev.activeProviders,
-        completedServices: prev.completedServices + Math.floor(Math.random() * 2),
-        revenue: prev.revenue + Math.floor(Math.random() * 500)
-      }));
-    }, 5000);
-    return () => clearInterval(interval);
+  const isLoggedIn = Boolean(user);
+  const userType =
+    user?.role === 'customer' ? 'consumer' : user?.role === 'provider' ? 'provider' : null;
+
+  const refreshStats = useCallback(async () => {
+    try {
+      const s = await api.getStats();
+      setStats(s);
+    } catch {
+      /* non-fatal */
+    }
   }, []);
 
-  // Handle Login
-  const handleLogin = (type) => {
-    setIsLoggedIn(true);
-    setUserType(type);
-    setShowLogin(false);
-    setCurrentView(type === 'consumer' ? 'services' : 'provider-dashboard');
+  const refreshCustomerBookings = useCallback(async () => {
+    if (!user || user.role !== 'customer') return;
+    setBookingsLoading(true);
+    try {
+      const list = await api.getCustomerBookings(user.userId);
+      setCustomerBookings(Array.isArray(list) ? list : []);
+    } catch {
+      setCustomerBookings([]);
+    } finally {
+      setBookingsLoading(false);
+    }
+  }, [user]);
+
+  const refreshProviderBookings = useCallback(async () => {
+    if (!user || user.role !== 'provider') return;
+    setBookingsLoading(true);
+    try {
+      const list = await api.getProviderBookings(user.userId);
+      setProviderBookings(Array.isArray(list) ? list : []);
+    } catch {
+      setProviderBookings([]);
+    } finally {
+      setBookingsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    refreshStats();
+  }, [refreshStats]);
+
+  useEffect(() => {
+    if (user?.role === 'customer' && currentView === 'bookings') {
+      refreshCustomerBookings();
+    }
+  }, [user, currentView, refreshCustomerBookings]);
+
+  useEffect(() => {
+    if (user?.role === 'provider' && currentView === 'provider-dashboard') {
+      refreshProviderBookings();
+    }
+  }, [user, currentView, refreshProviderBookings]);
+
+  useEffect(() => {
+    if (currentView === 'home') {
+      refreshStats();
+    }
+  }, [currentView, refreshStats]);
+
+  const persistUser = (u) => {
+    setUser(u);
+    if (u) localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+    else localStorage.removeItem(STORAGE_KEY);
   };
 
-  // Handle Signup
-  const handleSignup = (type) => {
-    setIsLoggedIn(true);
-    setUserType(type);
-    setShowSignup(false);
-    setCurrentView(type === 'consumer' ? 'services' : 'provider-dashboard');
-  };
-
-  // Handle Logout
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setUserType(null);
-    setCurrentView('home');
-  };
-
-  // Handle Service Booking
-  const handleBookService = (bookingData) => {
-    const newBooking = {
-      id: bookings.length + 1,
-      service: bookingData.service.name,
-      provider: bookingData.provider ? bookingData.provider.name : 'To be assigned',
-      date: bookingData.formData.date,
-      time: bookingData.formData.time,
-      status: 'pending',
-      amount: parseInt(bookingData.service.price.split('-')[1].replace('₹', '')),
-      address: bookingData.formData.address,
-      customerName: 'Your Name',
-      phone: bookingData.formData.phone
+  const handleLoginSuccess = (payload) => {
+    const u = {
+      userId: payload.user_id,
+      name: payload.name,
+      role: payload.role,
     };
-    
-    setBookings([...bookings, newBooking]);
-    setCurrentView('bookings');
-    
-    // Show success message
-    alert('Booking created successfully! Check your bookings page.');
+    persistUser(u);
+    setShowLogin(false);
+    setCurrentView(u.role === 'customer' ? 'services' : 'provider-dashboard');
   };
 
-  // Handle Provider Request Action
-  const handleRequestAction = (requestId, action) => {
-    setServiceRequests(serviceRequests.map(req => 
-      req.id === requestId ? { ...req, status: action } : req
-    ));
-    
-    // Show success message
-    const actionText = action === 'accepted' ? 'accepted' : 'rejected';
-    alert(`Request has been ${actionText} successfully!`);
+  const handleSignupSuccess = (payload) => {
+    const u = {
+      userId: payload.user_id,
+      name: payload.name,
+      role: payload.role,
+    };
+    persistUser(u);
+    setShowSignup(false);
+    setCurrentView(u.role === 'customer' ? 'services' : 'provider-dashboard');
+  };
+
+  const handleLogout = () => {
+    persistUser(null);
+    setCurrentView('home');
+    setCustomerBookings([]);
+    setProviderBookings([]);
+  };
+
+  const handleBookService = async (bookingData) => {
+    if (!user || user.role !== 'customer') {
+      alert('Please log in as a customer to book.');
+      return;
+    }
+    const provider = bookingData.provider;
+    if (!provider?.id) {
+      alert('Please select a provider.');
+      return;
+    }
+    try {
+      const addr = bookingData.formData.description?.trim()
+        ? `${bookingData.formData.address}\n\nNote: ${bookingData.formData.description.trim()}`
+        : bookingData.formData.address;
+      await api.createBooking({
+        customer_id: user.userId,
+        provider_id: provider.id,
+        service_id: bookingData.service.id,
+        date: bookingData.formData.date,
+        time: bookingData.formData.time,
+        address: addr,
+        phone: bookingData.formData.phone,
+      });
+      await refreshCustomerBookings();
+      await refreshStats();
+      setCurrentView('bookings');
+      alert('Booking created successfully.');
+    } catch (e) {
+      alert(e.message || 'Could not create booking');
+    }
+  };
+
+  const handleProviderStatus = async (bookingId, action) => {
+    try {
+      if (action === 'accepted') {
+        await api.updateBookingStatus(bookingId, 'accepted');
+      } else if (action === 'rejected') {
+        await api.deleteBooking(bookingId);
+      }
+      await refreshProviderBookings();
+      await refreshStats();
+    } catch (e) {
+      alert(e.message || 'Action failed');
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <Navbar 
+      <Navbar
         isLoggedIn={isLoggedIn}
         userType={userType}
         currentView={currentView}
@@ -103,9 +192,8 @@ function App() {
         handleLogout={handleLogout}
       />
 
-      {/* Main Content - Render pages based on currentView */}
       {currentView === 'home' && (
-        <HomePage 
+        <HomePage
           stats={stats}
           isLoggedIn={isLoggedIn}
           userType={userType}
@@ -113,43 +201,42 @@ function App() {
           setCurrentView={setCurrentView}
         />
       )}
-      
+
       {currentView === 'services' && (
-        <ServicesPage 
-          services={services}
-          providers={providers}
-          onBookService={handleBookService}
-        />
+        <ServicesPage onBookService={handleBookService} />
       )}
-      
+
       {currentView === 'bookings' && (
-        <BookingsPage bookings={bookings} />
-      )}
-      
-      {currentView === 'providers' && (
-        <ProvidersPage providers={providers} />
-      )}
-      
-      {currentView === 'provider-dashboard' && (
-        <ProviderDashboard 
-          serviceRequests={serviceRequests}
-          onRequestAction={handleRequestAction}
+        <BookingsPage
+          bookings={customerBookings}
+          loading={bookingsLoading}
+          onRefresh={refreshCustomerBookings}
         />
       )}
 
-      {/* Modals */}
+      {currentView === 'providers' && <ProvidersPage />}
+
+      {currentView === 'provider-dashboard' && (
+        <ProviderDashboard
+          bookings={providerBookings}
+          loading={bookingsLoading}
+          onRequestAction={handleProviderStatus}
+          onRefresh={refreshProviderBookings}
+        />
+      )}
+
       {showLogin && (
-        <LoginModal 
-          onClose={() => setShowLogin(false)} 
-          onLogin={handleLogin}
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onLoginSuccess={handleLoginSuccess}
           setShowSignup={setShowSignup}
         />
       )}
-      
+
       {showSignup && (
-        <SignupModal 
-          onClose={() => setShowSignup(false)} 
-          onSignup={handleSignup}
+        <SignupModal
+          onClose={() => setShowSignup(false)}
+          onSignupSuccess={handleSignupSuccess}
           setShowLogin={setShowLogin}
         />
       )}
