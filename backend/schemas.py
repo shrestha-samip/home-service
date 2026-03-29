@@ -19,13 +19,15 @@ class LoginBody(BaseModel):
 
 class BookingCreateBody(BaseModel):
     customer_id: int
-    provider_id: int
     service_id: int
     date: str
     time: str
     address: str
     phone: str
+    provider_id: Optional[int] = None  # optional; open job if omitted
 
 
 class BookingStatusBody(BaseModel):
     status: str
+    # Required when accepting an open booking (assigns this provider)
+    provider_id: Optional[int] = None

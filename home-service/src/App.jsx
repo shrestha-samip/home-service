@@ -5,6 +5,7 @@ import ServicesPage from './pages/ServicesPage';
 import BookingsPage from './pages/BookingPage';
 import ProvidersPage from './pages/ProvidersPage';
 import ProviderDashboard from './pages/ProviderDashboard';
+import ProfilePage from './pages/ProfilePage';
 import LoginModal from './components/LoginModal';
 import SignupModal from './components/SignupModal';
 import { api } from './api/client';
@@ -139,18 +140,12 @@ function App() {
       alert('Please log in as a customer to book.');
       return;
     }
-    const provider = bookingData.provider;
-    if (!provider?.id) {
-      alert('Please select a provider.');
-      return;
-    }
     try {
       const addr = bookingData.formData.description?.trim()
         ? `${bookingData.formData.address}\n\nNote: ${bookingData.formData.description.trim()}`
         : bookingData.formData.address;
       await api.createBooking({
         customer_id: user.userId,
-        provider_id: provider.id,
         service_id: bookingData.service.id,
         date: bookingData.formData.date,
         time: bookingData.formData.time,
@@ -167,9 +162,13 @@ function App() {
   };
 
   const handleProviderStatus = async (bookingId, action) => {
+    if (!user || user.role !== 'provider') return;
     try {
       if (action === 'accepted') {
-        await api.updateBookingStatus(bookingId, 'accepted');
+        await api.updateBookingStatus(bookingId, {
+          status: 'accepted',
+          provider_id: user.userId,
+        });
       } else if (action === 'rejected') {
         await api.deleteBooking(bookingId);
       }
@@ -216,13 +215,18 @@ function App() {
 
       {currentView === 'providers' && <ProvidersPage />}
 
-      {currentView === 'provider-dashboard' && (
+      {currentView === 'provider-dashboard' && user?.role === 'provider' && (
         <ProviderDashboard
           bookings={providerBookings}
           loading={bookingsLoading}
           onRequestAction={handleProviderStatus}
           onRefresh={refreshProviderBookings}
+          currentProviderId={user.userId}
         />
+      )}
+
+      {currentView === 'profile' && user && (
+        <ProfilePage userId={user.userId} />
       )}
 
       {showLogin && (
