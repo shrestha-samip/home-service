@@ -35,24 +35,25 @@ def create_service(name: str, price: str = None, db: Session = Depends(get_db)):
 
 
 # ---------------- Get All Services ----------------
+def _service_row(s: models.Service) -> dict:
+    return {"id": s.id, "name": s.name, "price": s.price}
+
+
 @router.get("/")
 def get_services(db: Session = Depends(get_db)):
-
-    services = db.query(models.Service).all()
-
-    return services
+    services = db.query(models.Service).order_by(models.Service.id).all()
+    return [_service_row(s) for s in services]
 
 
 # ---------------- Get Single Service ----------------
 @router.get("/{service_id}")
 def get_service(service_id: int, db: Session = Depends(get_db)):
-
     service = db.query(models.Service).filter(models.Service.id == service_id).first()
 
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
 
-    return service
+    return _service_row(service)
 
 
 # ---------------- Delete Service ----------------

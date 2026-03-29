@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from db import SessionLocal
 import models
+from schemas import BookingCreateBody, BookingStatusBody
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
 
-# ---------------- DB Dependency ----------------
 def get_db():
     db = SessionLocal()
     try:
@@ -15,23 +15,38 @@ def get_db():
         db.close()
 
 
-# ---------------- Create Booking ----------------
-@router.post("/")
-def create_booking(
-    customer_id: int,
-    provider_id: int,
-    service_id: int,
-    date: str,
-    time: str,
-    address: str,
-    phone: str,
-    db: Session = Depends(get_db)
-):
+def booking_to_dict(booking: models.Booking, db: Session) -> dict:
+    customer = (
+        db.query(models.User).filter(models.User.id == booking.customer_id).first()
+    )
+    provider = (
+        db.query(models.User).filter(models.User.id == booking.provider_id).first()
+    )
+    service = (
+        db.query(models.Service).filter(models.Service.id == booking.service_id).first()
+    )
+    return {
+        "id": booking.id,
+        "customer_id": booking.customer_id,
+        "provider_id": booking.provider_id,
+        "service_id": booking.service_id,
+        "service_name": service.name if service else None,
+        "provider_name": provider.name if provider else None,
+        "customer_name": customer.name if customer else None,
+        "date": booking.date,
+        "time": booking.time,
+        "address": booking.address,
+        "phone": booking.phone,
+        "status": booking.status,
+        "price": service.price if service else None,
+    }
 
-    # Check if users & service exist
-    customer = db.query(models.User).filter(models.User.id == customer_id).first()
-    provider = db.query(models.User).filter(models.User.id == provider_id).first()
-    service = db.query(models.Service).filter(models.Service.id == service_id).first()
+
+@router.post("/")
+def create_booking(body: BookingCreateBody, db: Session = Depends(get_db)):
+    customer = db.query(models.User).filter(models.User.id == body.customer_id).first()
+    provider = db.query(models.User).filter(models.User.id == body.provider_id).first()
+    service = db.query(models.Service).filter(models.Service.id == body.service_id).first()
 
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
@@ -41,13 +56,13 @@ def create_booking(
         raise HTTPException(status_code=404, detail="Service not found")
 
     new_booking = models.Booking(
-        customer_id=customer_id,
-        provider_id=provider_id,
-        service_id=service_id,
-        date=date,
-        time=time,
-        address=address,
-        phone=phone
+        customer_id=body.customer_id,
+        provider_id=body.provider_id,
+        service_id=body.service_id,
+        date=body.date,
+        time=body.time,
+        address=body.address,
+        phone=body.phone,
     )
 
     db.add(new_booking)
@@ -56,72 +71,71 @@ def create_booking(
 
     return {
         "message": "Booking created",
-        "booking_id": new_booking.id,
-        "status": new_booking.status
+        "booking": booking_to_dict(new_booking, db),
     }
 
 
-# ---------------- Get All Bookings ----------------
 @router.get("/")
 def get_all_bookings(db: Session = Depends(get_db)):
+    bookings = db.query(models.Booking).order_by(models.Booking.id.desc()).all()
+    return [booking_to_dict(b, db) for b in bookings]
 
-    bookings = db.query(models.Booking).all()
-    return bookings
 
-
-# ---------------- Get Booking by ID ----------------
 @router.get("/{booking_id}")
 def get_booking(booking_id: int, db: Session = Depends(get_db)):
-
     booking = db.query(models.Booking).filter(models.Booking.id == booking_id).first()
 
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
-    return booking
+    return booking_to_dict(booking, db)
 
 
-# ---------------- Update Booking Status ----------------
 @router.put("/{booking_id}/status")
-def update_booking_status(booking_id: int, status: str, db: Session = Depends(get_db)):
-
+def update_booking_status(
+    booking_id: int, body: BookingStatusBody, db: Session = Depends(get_db)
+):
     booking = db.query(models.Booking).filter(models.Booking.id == booking_id).first()
 
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
-    if status not in ["pending", "accepted", "completed"]:
+    if body.status not in ["pending", "accepted", "completed"]:
         raise HTTPException(status_code=400, detail="Invalid status")
 
-    booking.status = status
+    booking.status = body.status
     db.commit()
 
     return {
         "message": "Booking status updated",
-        "new_status": booking.status
+        "new_status": booking.status,
     }
 
 
-# ---------------- Get Bookings by Customer ----------------
 @router.get("/customer/{customer_id}")
 def get_customer_bookings(customer_id: int, db: Session = Depends(get_db)):
+    bookings = (
+        db.query(models.Booking)
+        .filter(models.Booking.customer_id == customer_id)
+        .order_by(models.Booking.id.desc())
+        .all()
+    )
+    return [booking_to_dict(b, db) for b in bookings]
 
-    bookings = db.query(models.Booking).filter(models.Booking.customer_id == customer_id).all()
-    return bookings
 
-
-# ---------------- Get Bookings by Provider ----------------
 @router.get("/provider/{provider_id}")
 def get_provider_bookings(provider_id: int, db: Session = Depends(get_db)):
+    bookings = (
+        db.query(models.Booking)
+        .filter(models.Booking.provider_id == provider_id)
+        .order_by(models.Booking.id.desc())
+        .all()
+    )
+    return [booking_to_dict(b, db) for b in bookings]
 
-    bookings = db.query(models.Booking).filter(models.Booking.provider_id == provider_id).all()
-    return bookings
 
-
-# ---------------- Delete Booking ----------------
 @router.delete("/{booking_id}")
 def delete_booking(booking_id: int, db: Session = Depends(get_db)):
-
     booking = db.query(models.Booking).filter(models.Booking.id == booking_id).first()
 
     if not booking:
