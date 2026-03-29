@@ -4,7 +4,10 @@ import { parsePriceToAmount } from '../utils/serviceIcons';
 
 const BookingCard = ({ booking }) => {
   const serviceLabel = booking.service_name || booking.service || 'Service';
-  const providerLabel = booking.provider_name || booking.provider || '—';
+  const providerLabel =
+    booking.status === 'pending' && !booking.provider_name
+      ? 'Awaiting a provider'
+      : booking.provider_name || booking.provider || '—';
   const amount =
     booking.amount != null ? booking.amount : parsePriceToAmount(booking.price);
   const status = booking.status || 'pending';

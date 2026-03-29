@@ -60,7 +60,8 @@ class Booking(Base):
     id = Column(Integer, primary_key=True)
 
     customer_id = Column(Integer, ForeignKey("users.id"))
-    provider_id = Column(Integer, ForeignKey("users.id"))
+    # Null until a provider accepts the booking (open / marketplace jobs)
+    provider_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     service_id = Column(Integer, ForeignKey("services.id"))
 

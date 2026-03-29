@@ -79,6 +79,23 @@ def login(body: LoginBody, db: Session = Depends(get_db)):
     }
 
 
+@router.get("/users/{user_id}")
+def get_user_profile(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "phone": user.phone,
+        "role": user.role,
+        "experience": user.experience,
+        "specialization": user.specialization,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
 @router.get("/providers")
 def list_providers(db: Session = Depends(get_db)):
     rows = (

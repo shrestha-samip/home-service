@@ -6,11 +6,9 @@ import { api } from '../api/client';
 const ServicesPage = ({ onBookService }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [services, setServices] = useState([]);
-  const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
-  const [selectedProvider, setSelectedProvider] = useState(null);
   const [bookingForm, setBookingForm] = useState({
     date: '',
     time: '',
@@ -25,19 +23,12 @@ const ServicesPage = ({ onBookService }) => {
       setLoading(true);
       setError(null);
       try {
-        const [svc, prov] = await Promise.all([
-          api.getServices(),
-          api.getProviders(),
-        ]);
-        if (!cancelled) {
-          setServices(Array.isArray(svc) ? svc : []);
-          setProviders(Array.isArray(prov) ? prov : []);
-        }
+        const svc = await api.getServices();
+        if (!cancelled) setServices(Array.isArray(svc) ? svc : []);
       } catch (e) {
         if (!cancelled) {
           setError(e.message || 'Failed to load services');
           setServices([]);
-          setProviders([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -52,25 +43,17 @@ const ServicesPage = ({ onBookService }) => {
     (service.name || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const providersForService = selectedService ? providers : [];
-
   const handleBooking = () => {
     if (!bookingForm.date || !bookingForm.time || !bookingForm.address || !bookingForm.phone) {
       alert('Please fill date, time, address, and phone.');
       return;
     }
-    if (!selectedProvider) {
-      alert('Please select a provider.');
-      return;
-    }
     onBookService({
       service: selectedService,
-      provider: selectedProvider,
       formData: bookingForm,
     });
     setBookingForm({ date: '', time: '', address: '', description: '', phone: '' });
     setSelectedService(null);
-    setSelectedProvider(null);
   };
 
   if (loading) {
@@ -85,7 +68,9 @@ const ServicesPage = ({ onBookService }) => {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
         <p className="text-red-600 font-semibold mb-2">{error}</p>
-        <p className="text-gray-600 text-sm">Is the API running at {import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}?</p>
+        <p className="text-gray-600 text-sm">
+          Is the API running at {import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}?
+        </p>
       </div>
     );
   }
@@ -93,7 +78,10 @@ const ServicesPage = ({ onBookService }) => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h2 className="text-4xl font-bold mb-6 text-gray-800">Explore Services</h2>
+        <h2 className="text-4xl font-bold mb-2 text-gray-800">Explore Services</h2>
+        <p className="text-gray-600 mb-6">
+          Request a booking without choosing a provider — any available professional can accept it from their dashboard.
+        </p>
 
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <div className="flex-1 relative">
@@ -123,50 +111,17 @@ const ServicesPage = ({ onBookService }) => {
                 Book {selectedService.name}
               </h3>
               <button
-                onClick={() => {
-                  setSelectedService(null);
-                  setSelectedProvider(null);
-                }}
+                type="button"
+                onClick={() => setSelectedService(null)}
                 className="text-gray-500 hover:text-gray-700 transition"
               >
                 <X size={28} />
               </button>
             </div>
 
-            <div className="mb-6">
-              <h4 className="font-semibold text-lg mb-3 text-gray-800">Select a provider</h4>
-              {providersForService.length === 0 ? (
-                <p className="text-gray-600 text-sm">
-                  No providers registered yet. Ask a professional to sign up as a provider.
-                </p>
-              ) : (
-                <div className="grid md:grid-cols-2 gap-3">
-                  {providersForService.map((provider) => (
-                    <div
-                      key={provider.id}
-                      onClick={() => setSelectedProvider(provider)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition ${
-                        selectedProvider?.id === provider.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-blue-300'
-                      }`}
-                    >
-                      <div className="flex items-center mb-2">
-                        <div className="bg-gray-200 w-12 h-12 rounded-full flex items-center justify-center mr-3">
-                          <span className="text-lg font-bold text-gray-600">
-                            {(provider.name || '?').charAt(0)}
-                          </span>
-                        </div>
-                        <div>
-                          <h5 className="font-bold text-gray-800">{provider.name}</h5>
-                          <p className="text-sm text-gray-600 line-clamp-2">{provider.specialization}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <p className="text-gray-600 text-sm mb-6">
+              Your request will be visible to all service providers until one accepts it.
+            </p>
 
             <div className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
@@ -220,10 +175,11 @@ const ServicesPage = ({ onBookService }) => {
                 />
               </div>
               <button
+                type="button"
                 onClick={handleBooking}
                 className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-4 rounded-xl hover:from-blue-600 hover:to-purple-700 transition font-bold text-lg shadow-lg"
               >
-                Confirm Booking
+                Submit booking request
               </button>
             </div>
           </div>

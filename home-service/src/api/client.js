@@ -39,6 +39,7 @@ export const api = {
   getStats: () => request('/auth/stats'),
   getServices: () => request('/service/services/'),
   getProviders: () => request('/auth/providers'),
+  getUserProfile: (userId) => request(`/auth/users/${userId}`),
   signup: (body) => request('/auth/signup', { method: 'POST', body }),
   login: (body) => request('/auth/login', { method: 'POST', body }),
   createBooking: (body) => request('/book/bookings/', { method: 'POST', body }),
@@ -46,10 +47,10 @@ export const api = {
     request(`/book/bookings/customer/${customerId}`),
   getProviderBookings: (providerId) =>
     request(`/book/bookings/provider/${providerId}`),
-  updateBookingStatus: (bookingId, status) =>
+  updateBookingStatus: (bookingId, payload) =>
     request(`/book/bookings/${bookingId}/status`, {
       method: 'PUT',
-      body: { status },
+      body: payload,
     }),
   deleteBooking: (bookingId) =>
     request(`/book/bookings/${bookingId}`, { method: 'DELETE' }),

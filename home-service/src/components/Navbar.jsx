@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Menu, X, LogOut } from 'lucide-react';
+import { Home, Menu, X, LogOut, UserCircle } from 'lucide-react';
 
 const Navbar = ({ 
   isLoggedIn, 
@@ -85,6 +85,20 @@ const Navbar = ({
                 Dashboard
               </button>
             )}
+            {isLoggedIn && (
+              <button
+                type="button"
+                onClick={() => setCurrentView('profile')}
+                className={`flex items-center gap-1 font-semibold transition ${
+                  currentView === 'profile'
+                    ? 'text-blue-600'
+                    : 'text-gray-700 hover:text-blue-600'
+                }`}
+              >
+                <UserCircle size={20} />
+                Profile
+              </button>
+            )}
             {!isLoggedIn ? (
               <>
                 <button 
@@ -143,6 +157,16 @@ const Navbar = ({
                 className="block w-full text-left text-gray-700 hover:text-blue-600 transition font-semibold py-2"
               >
                 Dashboard
+              </button>
+            )}
+            {isLoggedIn && (
+              <button
+                type="button"
+                onClick={() => { setCurrentView('profile'); setIsMenuOpen(false); }}
+                className="block w-full text-left text-gray-700 hover:text-blue-600 transition font-semibold py-2 flex items-center gap-2"
+              >
+                <UserCircle size={20} />
+                Profile
               </button>
             )}
             {!isLoggedIn ? (
